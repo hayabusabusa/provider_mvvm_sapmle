@@ -5,6 +5,7 @@ import 'package:provider_mvvm_sample/models/entities/entities.dart';
 // TODO: あえて Fat な作りにするので可能ならリファクタ.
 class ArticlesNotifier with ChangeNotifier {
   final APIClient _apiClient = APIClient();
+  final ScrollController scrollController = ScrollController();
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -22,6 +23,13 @@ class ArticlesNotifier with ChangeNotifier {
     notifyListeners();
   }
 
+  void _appendItems(List<QiitaItem> items) {
+    _items.addAll(items);
+    notifyListeners();
+  }
+
+  int _page = 1;
+
   String _error = '';
   String get error => _error;
 
@@ -30,20 +38,54 @@ class ArticlesNotifier with ChangeNotifier {
     notifyListeners();
   }
 
+  // MARK: Lifecycle
+
   ArticlesNotifier() {
     // NOTE: build() メソッドなどのライフサイクルイベント上では
     // notifyListeners() を呼べないので、
     // コンストラクタで初回フェッチの処理を行う.
     fetch();
+
+    scrollController.addListener(() { 
+      double position = scrollController.offset / scrollController.position.maxScrollExtent;
+      if (position >= 1) {
+        fetchNext();
+      }
+    });
   }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  // MARK: Public methods
 
   void fetch() async {
     try {
-      final all = await _apiClient.getAllItems(1);
+      final all = await _apiClient.getAllItems(_page);
       _setIsLoading(false);
       _setItems(all.items);
     } catch (error) {
       _setIsLoading(false);
+      _setError(error.toString());
+    }
+  }
+
+  void fetchNext() async {
+    if (_isLoading) return;
+
+    // NOTE: 画面に通知したくない
+    _isLoading = true;
+
+    try {
+      final all = await _apiClient.getAllItems(_page + 1);
+      _page += 1;
+      _isLoading = false;
+      _appendItems(all.items);
+    } catch (error) {
+      _isLoading = false;
       _setError(error.toString());
     }
   }

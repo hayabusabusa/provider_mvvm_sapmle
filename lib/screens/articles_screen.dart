@@ -23,6 +23,7 @@ class ArticlesScreen extends StatelessWidget {
           )
           : Scrollbar(
             child: ListView.builder(
+              controller: value.scrollController,
               itemCount: value.items.length,
               itemBuilder: (context, index) => ArticleItem(
                 qiitaItem: value.items[index], 

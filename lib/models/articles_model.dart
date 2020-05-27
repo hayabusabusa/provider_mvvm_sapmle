@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:rxdart/rxdart.dart';
 
 import 'package:provider_mvvm_sample/models/network/api_client.dart';
 import 'package:provider_mvvm_sample/models/entities/entities.dart';
@@ -6,33 +7,30 @@ import 'package:provider_mvvm_sample/models/entities/entities.dart';
 class ArticlesModel {
   final APIClient _apiClient = APIClient();
 
-  final StreamController<bool> _isLoadingStream = StreamController<bool>();
-  Stream<bool> get isLoadingStream => _isLoadingStream.stream;
+  final PublishSubject<bool> _isLoadingSubject = PublishSubject<bool>();
+  Stream<bool> get isLoadingStream => _isLoadingSubject.stream;
 
-  final StreamController<List<QiitaItem>> _articlesStream = StreamController<List<QiitaItem>>.broadcast();
-  Stream<List<QiitaItem>> get articlesStream => _articlesStream.stream;
+  final BehaviorSubject<List<QiitaItem>> _articlesSubject = BehaviorSubject<List<QiitaItem>>.seeded([]);
+  Stream<List<QiitaItem>> get articlesStream => _articlesSubject.stream;
 
-  final StreamController<String> _errorStream = StreamController<String>();
-  Stream<String> get errorStream => _errorStream.stream;
+  final PublishSubject<String> _errorSubject = PublishSubject<String>();
+  Stream<String> get errorStream => _errorSubject.stream;
 
   /// 現在取得したページのインデックス
   int _page = 1;
   /// 次のページを読み込み中かどうか
   bool _isLoadingNext = false;
-  /// Stream だとキャッシュなどしてくれないので、仕方なくここで持つ
-  List<QiitaItem> _items = [];
   
   void fetch() async {
-    _isLoadingStream.sink.add(true);
+    _isLoadingSubject.add(true);
 
     try {
       final all = await _apiClient.getAllItems(_page);
-      _items = all.items;
-      _isLoadingStream.sink.add(false);
-      _articlesStream.sink.add(_items);
+      _isLoadingSubject.add(false);
+      _articlesSubject.add(all.items);
     } catch (error) {
-      _isLoadingStream.sink.add(false);
-      _errorStream.sink.add(error.toString());
+      _isLoadingSubject.add(false);
+      _errorSubject.add(error.toString());
     }
   }
 
@@ -51,21 +49,24 @@ class ArticlesModel {
       // これは Stream がデフォルトでは Single Subscription Stream になっているため、二回以降 listen すると発生するエラー.
       // last の実装を見ると、内部で listen して Future を返しているので、このエラーが発生する.
       //List<QiitaItem> newItems = await _articlesStream.stream.last;
-      _items.addAll(all.items);
+
+      // NOTE: そんなわけで BehaviorSubject で対応.
+      List<QiitaItem> newItems = _articlesSubject.value;
+      newItems.addAll(all.items);
       
       _isLoadingNext = false;
-      _articlesStream.sink.add(_items);
+      _articlesSubject.add(newItems);
     } catch (error) {
       _isLoadingNext = false;
-      _errorStream.sink.add(error.toString());
+      _errorSubject.add(error.toString());
     }
   }
 
   // NOTE: dispose のライフサイクルメソッドがないので
   // まとめて `close()` させるメソッドを生やす必用がある.
   void dispose() {
-    _isLoadingStream.close();
-    _articlesStream.close();
-    _errorStream.close();
+    _isLoadingSubject.close();
+    _articlesSubject.close();
+    _errorSubject.close();
   }
 }

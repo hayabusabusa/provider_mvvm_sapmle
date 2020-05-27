@@ -7,6 +7,8 @@ class ArticlesNotifier with ChangeNotifier {
   final APIClient _apiClient = APIClient();
   final ScrollController scrollController = ScrollController();
 
+  int _page = 1;
+  bool _isFetchNext = false;
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
@@ -27,8 +29,6 @@ class ArticlesNotifier with ChangeNotifier {
     _items.addAll(items);
     notifyListeners();
   }
-
-  int _page = 1;
 
   String _error = '';
   String get error => _error;
@@ -74,18 +74,17 @@ class ArticlesNotifier with ChangeNotifier {
   }
 
   void fetchNext() async {
-    if (_isLoading) return;
+    if (_isFetchNext) return;
 
-    // NOTE: 画面に通知したくない
-    _isLoading = true;
+    _isFetchNext = true;
 
     try {
       final all = await _apiClient.getAllItems(_page + 1);
       _page += 1;
-      _isLoading = false;
+      _isFetchNext = false;
       _appendItems(all.items);
     } catch (error) {
-      _isLoading = false;
+      _isFetchNext = false;
       _setError(error.toString());
     }
   }

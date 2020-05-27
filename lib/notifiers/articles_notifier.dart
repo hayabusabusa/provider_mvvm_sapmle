@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider_mvvm_sample/models/network/api_client.dart';
+
+import 'package:provider_mvvm_sample/models/models.dart';
 import 'package:provider_mvvm_sample/models/entities/entities.dart';
 
-// TODO: あえて Fat な作りにするので可能ならリファクタ.
 class ArticlesNotifier with ChangeNotifier {
-  final APIClient _apiClient = APIClient();
+  final ArticlesModel _model = ArticlesModel();
   final ScrollController scrollController = ScrollController();
 
-  int _page = 1;
-  bool _isFetchNext = false;
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
@@ -25,11 +23,6 @@ class ArticlesNotifier with ChangeNotifier {
     notifyListeners();
   }
 
-  void _appendItems(List<QiitaItem> items) {
-    _items.addAll(items);
-    notifyListeners();
-  }
-
   String _error = '';
   String get error => _error;
 
@@ -38,54 +31,30 @@ class ArticlesNotifier with ChangeNotifier {
     notifyListeners();
   }
 
-  // MARK: Lifecycle
-
   ArticlesNotifier() {
+    // NOTE: Observe
+    _model.isLoadingStream.listen((event) => _setIsLoading(event));
+    _model.articlesStream.listen((event) => _setItems(event));
+    _model.errorStream.listen((event) => _setError(event));
+
     // NOTE: build() メソッドなどのライフサイクルイベント上では
     // notifyListeners() を呼べないので、
     // コンストラクタで初回フェッチの処理を行う.
-    fetch();
+    _model.fetch();
 
     scrollController.addListener(() { 
       double position = scrollController.offset / scrollController.position.maxScrollExtent;
       if (position >= 1) {
-        fetchNext();
+        _model.fetchNext();
       }
     });
   }
 
   @override
   void dispose() {
+    // NOTE: Model の dispose を忘れない.
+    _model.dispose();
     scrollController.dispose();
     super.dispose();
-  }
-
-  // MARK: Public methods
-
-  void fetch() async {
-    try {
-      final all = await _apiClient.getAllItems(_page);
-      _setIsLoading(false);
-      _setItems(all.items);
-    } catch (error) {
-      _setIsLoading(false);
-      _setError(error.toString());
-    }
-  }
-
-  void fetchNext() async {
-    if (_isFetchNext) return;
-
-    _isFetchNext = true;
-
-    try {
-      final all = await _apiClient.getAllItems(_page + 1);
-      _page += 1;
-      _isFetchNext = false;
-      _appendItems(all.items);
-    } catch (error) {
-      _isFetchNext = false;
-      _setError(error.toString());
-    }
   }
 }

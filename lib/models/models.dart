@@ -1,0 +1,1 @@
+export './articles_model.dart';
